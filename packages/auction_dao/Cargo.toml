@@ -1,0 +1,13 @@
+[package]
+name = "auction_dao"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+cosmwasm-std       = { workspace = true }
+cw-storage-plus    = { workspace = true }
+injective-cosmwasm = { workspace = true }
+injective-std      = { workspace = true }
+schemars           = { workspace = true }
+serde              = { workspace = true }
+thiserror          = { workspace = true }
