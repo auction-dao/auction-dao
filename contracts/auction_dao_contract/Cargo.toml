@@ -1,0 +1,34 @@
+[package]
+edition = "2021"
+name = "auction_dao_contract"
+version = "0.1.0"
+
+
+[lib]
+crate-type = [ "cdylib", "rlib" ]
+
+[features]
+# use library feature to disable all instantiate/execute/query exports
+library = [  ]
+
+
+[dependencies]
+auction_dao = { path = "../../packages/auction_dao" }
+cosmwasm-schema = { workspace = true }
+cosmwasm-std = { workspace = true }
+cw-ownable = { workspace = true }
+cw-storage-plus = { workspace = true }
+cw2 = { workspace = true }
+injective-cosmwasm = { workspace = true }
+injective-math = { workspace = true }
+injective-std = { workspace = true }
+injective-std-derive = { workspace = true }
+prost = { workspace = true }
+schemars = { workspace = true }
+serde = { workspace = true }
+thiserror = { workspace = true }
+
+[dev-dependencies]
+injective-test-tube = { workspace = true }
+# pinned 2.0.1 because dependency error
+test-tube-inj = { version = "=2.0.1" }

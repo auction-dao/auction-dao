@@ -1,0 +1,5 @@
+{
+    // somehow this makes my cpu go crazy
+    // "rust-analyzer.cargo.autoreload": true,
+    "rust-analyzer.procMacro.enable": true
+}
