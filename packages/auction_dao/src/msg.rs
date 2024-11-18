@@ -11,7 +11,8 @@ pub struct InstantiateMsg {
     pub admin: String,
     pub accepted_denom: String,
     pub swap_router: String,
-    pub time_buffer: u64,
+    pub bid_time_buffer: u64,
+    pub withdraw_time_buffer: u64,
     pub winning_bidder_reward_bps: Uint128,
     pub max_inj_offset_bps: Uint128,
 }

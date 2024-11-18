@@ -16,7 +16,10 @@ mod tests {
     };
 
     use cosmwasm_std::{Coin, Uint128};
-    use injective_std::types::cosmos::bank::v1beta1::{MsgSend, QueryBalanceRequest};
+    use injective_std::types::{
+        cosmos::bank::v1beta1::{MsgSend, QueryBalanceRequest},
+        injective::auction::v1beta1::QueryCurrentAuctionBasketResponse,
+    };
     use injective_test_tube::{Bank, Exchange, InjectiveTestApp, Wasm};
     use test_tube_inj::{Account, Module};
 
@@ -245,6 +248,118 @@ mod tests {
             .unwrap();
 
         assert_eq!(user_account2.deposited, Uint128::new(deposited_amount));
+
+        wasm.execute::<ExecuteMsg>(
+            &contract_addr,
+            &ExecuteMsg::Withdraw {
+                amount: deposited_amount.into(),
+            },
+            &[],
+            user,
+        )
+        .unwrap();
+
+        wasm.execute::<ExecuteMsg>(
+            &contract_addr,
+            &ExecuteMsg::Withdraw {
+                amount: deposited_amount.into(),
+            },
+            &[],
+            user2,
+        )
+        .unwrap();
+
+        let state = wasm
+            .query::<QueryMsg, Global>(&contract_addr, &QueryMsg::State {})
+            .unwrap();
+
+        assert_eq!(
+            state.total_supply,
+            Uint128::zero(),
+            "total supply not equal"
+        );
+    }
+
+    #[test]
+    fn deposit_inj_and_try_withdraw_before_auction() {
+        let app = init();
+        let accounts = &app
+            .init_accounts(&[Coin::new(1000 * ONE_18, "inj")], 3)
+            .unwrap();
+
+        let admin = &accounts[0];
+        let user = &accounts[1];
+        let user2 = &accounts[2];
+
+        let wasm: Wasm<'_, InjectiveTestApp> = Wasm::new(&app);
+        let bank = Bank::new(&app);
+        let router_contract_add = init_router_contract_inj(&wasm, admin);
+        let contract_addr = init_contract_inj(&wasm, admin, &router_contract_add);
+
+        let deposited_amount = 10 * ONE_18;
+
+        // We send 2 * 10 inj to the basket to let us commit for the two users
+        bank.send(
+            MsgSend {
+                from_address: admin.address(),
+                to_address: AUCTION_VAULT_ADDRESS.to_string(),
+                amount: vec![Coin::new(2 * deposited_amount, "inj".to_string()).into()],
+            },
+            admin,
+        )
+        .unwrap();
+
+        wasm.execute::<ExecuteMsg>(
+            &contract_addr,
+            &ExecuteMsg::Deposit {},
+            &[Coin::new(deposited_amount, "inj")],
+            user,
+        )
+        .unwrap();
+
+        wasm.execute::<ExecuteMsg>(
+            &contract_addr,
+            &ExecuteMsg::Deposit {},
+            &[Coin::new(deposited_amount, "inj")],
+            user2,
+        )
+        .unwrap();
+
+        let current_auction_response = wasm
+            .query::<QueryMsg, QueryCurrentAuctionBasketResponse>(
+                &contract_addr,
+                &QueryMsg::CurrentAuctionBasket {},
+            )
+            .unwrap();
+
+        let auction_end_time = current_auction_response.auctionClosingTime;
+        let current_time = app.get_block_time_seconds();
+
+        // We set the blockchain time to auction_end_time - 5; Should pass time buffer
+
+        let time_increase = u64::try_from(auction_end_time - current_time - 5).unwrap();
+        app.increase_time(time_increase);
+
+        let withdraw_r = wasm.execute::<ExecuteMsg>(
+            &contract_addr,
+            &ExecuteMsg::Withdraw {
+                amount: deposited_amount.into(),
+            },
+            &[],
+            user,
+        );
+
+        assert!(withdraw_r.is_err());
+
+        assert!(
+            withdraw_r
+                .unwrap_err()
+                .to_string()
+                .contains("Withdraw is disabled"),
+            "incorrect query result error message"
+        );
+
+        app.increase_time(6);
 
         wasm.execute::<ExecuteMsg>(
             &contract_addr,

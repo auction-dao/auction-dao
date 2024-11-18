@@ -1,4 +1,4 @@
-use std::str::Utf8Error;
+use std::{num::TryFromIntError, str::Utf8Error};
 
 use cosmwasm_std::{Decimal256RangeExceeded, DecimalRangeExceeded, StdError};
 use prost::{DecodeError, EncodeError};
@@ -87,8 +87,17 @@ pub enum ContractError {
     #[error("Its not yet time buddy")]
     NotInBidTime {},
 
+    #[error("Withdraw is disabled {0} minutes before the auctions end (the auction ends in {1} minutes)")]
+    NotInWithdrawTime(u64, u64),
+
     #[error("Custom Error: {val:?}")]
     CustomError { val: String },
+}
+
+impl From<TryFromIntError> for ContractError {
+    fn from(_: TryFromIntError) -> Self {
+        ContractError::Std(StdError::generic_err("Invalid number"))
+    }
 }
 
 // Implement From<DecimalRangeExceeded> for ContractError

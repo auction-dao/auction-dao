@@ -46,7 +46,8 @@ pub fn instantiate(
             accepted_denom: msg.accepted_denom,
             swap_router: deps.api.addr_validate(&msg.swap_router)?,
             admin: deps.api.addr_validate(&msg.admin)?,
-            time_buffer: msg.time_buffer,
+            bid_time_buffer_secs: msg.bid_time_buffer,
+            withdraw_time_buffer_secs: msg.withdraw_time_buffer,
             max_inj_offset_bps: msg.max_inj_offset_bps,
             contract_subaccount_id: get_default_subaccount_id_for_checked_address(
                 &env.contract.address,
@@ -76,7 +77,7 @@ pub fn execute(
             market_id,
             asset,
         } => manual_swap(deps, env, &info.sender, amount, &market_id, &asset),
-        ExecuteMsg::Withdraw { amount } => withdraw(deps, info, amount),
+        ExecuteMsg::Withdraw { amount } => withdraw(deps, env, info, amount),
         ExecuteMsg::TryBid { round } => auction::try_bid(deps, env, info, round),
         ExecuteMsg::TrySettle {} => auction::try_settle(deps, env, &info.sender),
         ExecuteMsg::UpdateConfig { new_config } => {

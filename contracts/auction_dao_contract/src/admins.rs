@@ -31,7 +31,8 @@ pub fn update_config(
         c.accepted_denom = new_config.accepted_denom;
         c.swap_router = deps.api.addr_validate(&new_config.swap_router)?;
         c.admin = deps.api.addr_validate(&new_config.admin)?;
-        c.time_buffer = new_config.time_buffer;
+        c.bid_time_buffer_secs = new_config.bid_time_buffer;
+        c.withdraw_time_buffer_secs = new_config.withdraw_time_buffer;
         c.winning_bidder_reward_bps = new_config.winning_bidder_reward_bps;
         c.max_inj_offset_bps = new_config.max_inj_offset_bps;
 

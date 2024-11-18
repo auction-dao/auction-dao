@@ -159,7 +159,11 @@ pub(crate) fn try_bid(
 
     // Check if it is time to bid
     // We want to push the bid as close to the end of the auction as possible
-    if env.block.time.plus_seconds(config.time_buffer).seconds()
+    if env
+        .block
+        .time
+        .plus_seconds(config.bid_time_buffer_secs)
+        .seconds()
         < u64::try_from(current_auction.auctionClosingTime).unwrap()
     {
         return Err(ContractError::NotInBidTime {});

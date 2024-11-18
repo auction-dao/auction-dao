@@ -1,13 +1,14 @@
 use auction_dao::state::{Config, Global, UserAccount};
 use cosmwasm_std::{
-    BankMsg, Coin, CosmosMsg, Decimal, Deps, DepsMut, MessageInfo, Response, Uint128,
+    BankMsg, Coin, CosmosMsg, Decimal, Deps, DepsMut, Env, MessageInfo, Response, Timestamp,
+    Uint128,
 };
 use injective_cosmwasm::{InjectiveMsgWrapper, InjectiveQueryWrapper};
 
 use auction_dao::error::ContractError;
 
 use crate::{
-    auction::get_current_auction_value_using_exchange,
+    auction::{get_current_auction, get_current_auction_value_using_exchange},
     state::{CONFIG, GLOBAL, USER_ACCOUNTS},
 };
 
@@ -66,6 +67,7 @@ pub fn deposit(
 
 pub fn withdraw(
     deps: DepsMut<InjectiveQueryWrapper>,
+    env: Env,
     info: MessageInfo,
     amount: Uint128,
 ) -> Result<Response<InjectiveMsgWrapper>, ContractError> {
@@ -80,11 +82,29 @@ pub fn withdraw(
         return Err(ContractError::InsufficientFunds {});
     }
 
+    let config = CONFIG.load(deps.storage)?;
+
+    let current_auction = get_current_auction(deps.as_ref())?;
+    let end_auction_ts =
+        Timestamp::from_seconds(u64::try_from(current_auction.auctionClosingTime)?);
+
+    // Check if we are in the withdraw time
+    // We allow withdraws until the auctionClosingTime - withdraw_time_buffer_secs
+    if env.block.time > end_auction_ts.minus_seconds(config.withdraw_time_buffer_secs) {
+        let buffer_in_min = config.withdraw_time_buffer_secs / 60;
+        let end_time_in_min = end_auction_ts
+            .minus_seconds(env.block.time.seconds())
+            .seconds()
+            / 60;
+        return Err(ContractError::NotInWithdrawTime(
+            buffer_in_min,
+            end_time_in_min,
+        ));
+    }
+
     let mut global = GLOBAL.load(deps.storage)?;
 
     update_user_reward(&mut user_account, &global.index)?;
-
-    let config = CONFIG.load(deps.storage)?;
 
     let amount_with_reward = amount + user_account.pending_reward;
     let msgs: Vec<CosmosMsg<_>> = vec![CosmosMsg::Bank(BankMsg::Send {
