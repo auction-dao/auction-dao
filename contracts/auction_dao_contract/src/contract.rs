@@ -27,7 +27,7 @@ use crate::{admins, queries};
 use injective_std::types::injective::exchange::v1beta1 as Exchange;
 
 // version info for migration info
-const CONTRACT_NAME: &str = "crates.io:auction_dao:auction_dao";
+const CONTRACT_NAME: &str = "crates.io:auction_dao";
 const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
 
 #[entry_point]
@@ -191,13 +191,9 @@ pub fn migrate(
     let contract_version = get_contract_version(deps.storage)?;
 
     match contract_version.contract.as_ref() {
-        "crates.io:auction_dao:auction_dao" => match contract_version.version.as_ref() {
+        CONTRACT_NAME => match contract_version.version.as_ref() {
             "0.1.0" => {
-                set_contract_version(
-                    deps.storage,
-                    format!("crates.io:{CONTRACT_NAME}"),
-                    CONTRACT_VERSION,
-                )?;
+                set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
             }
             _ => return Err(ContractError::MigrationError {}),
         },
