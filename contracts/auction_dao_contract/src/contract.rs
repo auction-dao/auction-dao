@@ -6,7 +6,7 @@ use cosmwasm_std::{
     entry_point, to_json_binary, Binary, Deps, DepsMut, Env, MessageInfo, Response, Uint128,
 };
 use cosmwasm_std::{Decimal256, Uint256};
-use cw2::set_contract_version;
+use cw2::{get_contract_version, set_contract_version};
 
 use injective_cosmwasm::{
     get_default_subaccount_id_for_checked_address, InjectiveMsgWrapper, InjectiveQueryWrapper,
@@ -14,7 +14,8 @@ use injective_cosmwasm::{
 
 use auction_dao::error::ContractError;
 use auction_dao::msg::{
-    ExecuteMsg, InstantiateMsg, QueryMsg, SELL_ASSET_SUCCESS_REPLY_ID, TRY_BID_SUCCESS_REPLY_ID,
+    ExecuteMsg, InstantiateMsg, MigrateMsg, QueryMsg, SELL_ASSET_SUCCESS_REPLY_ID,
+    TRY_BID_SUCCESS_REPLY_ID,
 };
 use prost::Message;
 
@@ -179,4 +180,33 @@ pub fn reply(
         }
         _ => Err(ContractError::InvalidReply(msg.id)),
     }
+}
+
+#[entry_point]
+pub fn migrate(
+    deps: DepsMut<InjectiveQueryWrapper>,
+    _env: Env,
+    _msg: MigrateMsg,
+) -> Result<Response, ContractError> {
+    let contract_version = get_contract_version(deps.storage)?;
+
+    match contract_version.contract.as_ref() {
+        "crates.io:auction_dao:auction_dao" => match contract_version.version.as_ref() {
+            "0.1.0" => {
+                set_contract_version(
+                    deps.storage,
+                    format!("crates.io:{CONTRACT_NAME}"),
+                    CONTRACT_VERSION,
+                )?;
+            }
+            _ => return Err(ContractError::MigrationError {}),
+        },
+        _ => return Err(ContractError::MigrationError {}),
+    }
+
+    Ok(Response::new()
+        .add_attribute("previous_contract_name", &contract_version.contract)
+        .add_attribute("previous_contract_version", &contract_version.version)
+        .add_attribute("new_contract_name", format!("crates.io:{CONTRACT_NAME}"))
+        .add_attribute("new_contract_version", CONTRACT_VERSION))
 }

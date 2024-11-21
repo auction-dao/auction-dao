@@ -90,6 +90,9 @@ pub enum ContractError {
     #[error("Withdraw is disabled {0} minutes before the auctions end (the auction ends in {1} minutes)")]
     NotInWithdrawTime(u64, u64),
 
+    #[error("Migration error")]
+    MigrationError {},
+
     #[error("Custom Error: {val:?}")]
     CustomError { val: String },
 }
