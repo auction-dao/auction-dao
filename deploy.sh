@@ -8,7 +8,7 @@ echo "storing ${ARTIFACT}"
 TX_HASH=$(echo $KEYPASSWD | injectived --chain-id ${CHAIN_ID} --node ${RPC} \
     tx wasm store ${ARTIFACT} \
     --from ${ADMIN} \
-    --gas-prices 160000000inj \
+    --gas-prices 500000000inj \
     --gas auto \
     --gas-adjustment 1.3 \
     -o json -y | jq '.txhash' -r)
@@ -23,17 +23,6 @@ CODE_ID=${CODE_ID:1:-1}
 
 echo "contract id: ${CODE_ID}"
 
-# HELIX_ROUTER_INSTANTIATE_MSG
-# INSTANTIATE_MSG=$(cat <<-END
-#     {
-#       "admin": "${ADMIN}",
-#       "fee_recipient": "${ADMIN}"
-#     }
-# END
-# )
-
-
-
 # Check if CONTRACT_ADDR exists
 if [ -n "$CONTRACT_ADDR" ]; then
     MIGRATE_MSG=$(cat <<-END
@@ -44,7 +33,8 @@ END
     echo "CONTRACT_ADDR exists: $CONTRACT_ADDR"
     # Perform actions if CONTRACT_ADDR exists
     TX_HASH=$(echo $KEYPASSWD | injectived tx wasm migrate \
-      $CONTRACT_ADDR $CODE_ID "$MIGRATE_MSG" --from $ADMIN --gas-prices 160000000inj \
+      $CONTRACT_ADDR $CODE_ID "$MIGRATE_MSG" \
+      --from $ADMIN --gas-prices 500000000inj \
       --gas auto --gas-adjustment 1.3 -o json -y | jq '.txhash' -r)
     echo "contract migrated, tx hash ${TX_HASH}"
 else
@@ -60,12 +50,21 @@ else
         }
 END
 )
+
+#    # HELIX_ROUTER_INSTANTIATE_MSG
+#     INSTANTIATE_MSG=$(cat <<-END
+#         {
+#           "admin": "${ADMIN}",
+#           "fee_recipient": "${ADMIN}"
+#         }
+# END
+# )
     echo "CONTRACT_ADDR does not exist"
     # Perform actions if CONTRACT_ADDR does not exist
     echo "instantiating the code id ${CODE_ID}"
     TX_HASH=$(echo $KEYPASSWD | injectived tx wasm instantiate \
       $CODE_ID "$INSTANTIATE_MSG" --from $ADMIN --admin $ADMIN \
-      --gas-prices 160000000inj --gas auto --gas-adjustment 1.3 \
+      --gas-prices 500000000inj --gas auto --gas-adjustment 1.3 \
       --label "$LABEL" -o json -y | jq '.txhash' -r)
     echo "contract instantiated, tx hash ${TX_HASH}"
 

@@ -1,0 +1,61 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "QueryCurrentAuctionBasketResponse",
+  "description": "QueryCurrentAuctionBasketResponse is the response type for the Query/CurrentAuctionBasket RPC method.",
+  "type": "object",
+  "required": [
+    "amount",
+    "auctionClosingTime",
+    "auctionRound",
+    "highestBidAmount",
+    "highestBidder"
+  ],
+  "properties": {
+    "amount": {
+      "description": "amount describes the amount put on auction",
+      "type": "array",
+      "items": {
+        "$ref": "#/definitions/Coin"
+      }
+    },
+    "auctionClosingTime": {
+      "description": "auctionClosingTime describes auction close time for the round",
+      "type": "integer",
+      "format": "int64"
+    },
+    "auctionRound": {
+      "description": "auctionRound describes current auction round",
+      "type": "integer",
+      "format": "uint64",
+      "minimum": 0.0
+    },
+    "highestBidAmount": {
+      "description": "highestBidAmount describes highest bid amount on current round",
+      "type": "string"
+    },
+    "highestBidder": {
+      "description": "highestBidder describes highest bidder on current round",
+      "type": "string"
+    }
+  },
+  "additionalProperties": false,
+  "definitions": {
+    "Coin": {
+      "description": "Coin defines a token with a denomination and an amount.\n\nNOTE: The amount field is an Int which implements the custom method signatures required by gogoproto.",
+      "type": "object",
+      "required": [
+        "amount",
+        "denom"
+      ],
+      "properties": {
+        "amount": {
+          "type": "string"
+        },
+        "denom": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false
+    }
+  }
+}
