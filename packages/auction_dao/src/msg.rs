@@ -1,7 +1,7 @@
 use cosmwasm_schema::{cw_serde, QueryResponses};
 
 #[allow(unused_imports)]
-use crate::state::{Global, UserAccount};
+use crate::state::{Config, Global, UserAccount};
 use cosmwasm_std::Uint128;
 #[allow(unused_imports)]
 use injective_std::types::injective::auction::v1beta1::QueryCurrentAuctionBasketResponse;
@@ -52,6 +52,8 @@ pub enum ExecuteMsg {
 pub enum QueryMsg {
     #[returns(Global)]
     State {},
+    #[returns(Config)]
+    Config {},
     #[returns(UserAccount)]
     User { address: String },
     #[returns(QueryCurrentAuctionBasketResponse)]

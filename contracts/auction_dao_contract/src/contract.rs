@@ -107,6 +107,10 @@ pub fn query(
             let global = GLOBAL.load(deps.storage)?;
             Ok(to_json_binary(&global)?)
         }
+        QueryMsg::Config {} => {
+            let config = CONFIG.load(deps.storage)?;
+            Ok(to_json_binary(&config)?)
+        }
         QueryMsg::User { address } => queries::query_user(deps, address),
         QueryMsg::CurrentAuctionBasket {} => queries::query_current_auction_basket(deps),
         QueryMsg::ExchangeSimulateSwap {
