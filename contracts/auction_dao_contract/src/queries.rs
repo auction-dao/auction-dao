@@ -23,7 +23,9 @@ pub fn query_user(
     deps: Deps<InjectiveQueryWrapper>,
     address: String,
 ) -> Result<Binary, ContractError> {
-    let mut user_account = USER_ACCOUNTS.load(deps.storage, &address)?;
+    let mut user_account = USER_ACCOUNTS
+        .may_load(deps.storage, &address)?
+        .unwrap_or_default();
     let global = GLOBAL.load(deps.storage)?;
 
     update_user_reward(&mut user_account, &global.index)?;
