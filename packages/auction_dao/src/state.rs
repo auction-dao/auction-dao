@@ -1,5 +1,5 @@
 use cosmwasm_schema::cw_serde;
-use cosmwasm_std::{Addr, Decimal, Uint128};
+use cosmwasm_std::{Addr, Decimal256, Uint128};
 use injective_cosmwasm::{MarketId, SubaccountId};
 use injective_std::types::cosmos::base::v1beta1::Coin;
 use schemars::JsonSchema;
@@ -20,7 +20,7 @@ pub struct Config {
 #[cw_serde]
 pub struct UserAccount {
     pub deposited: Uint128,
-    pub index: Decimal,
+    pub index: Decimal256,
     pub pending_reward: Uint128,
 }
 
@@ -28,7 +28,7 @@ impl Default for UserAccount {
     fn default() -> Self {
         UserAccount {
             deposited: Uint128::zero(),
-            index: Decimal::zero(),
+            index: Decimal256::zero(),
             pending_reward: Uint128::zero(),
         }
     }
@@ -36,7 +36,7 @@ impl Default for UserAccount {
 
 #[cw_serde]
 pub struct Global {
-    pub index: Decimal,
+    pub index: Decimal256,
     // profit before updated index
     pub profit_to_distribute: Uint128,
     // sum of the profit already distributed
@@ -47,7 +47,7 @@ pub struct Global {
 impl Default for Global {
     fn default() -> Self {
         Global {
-            index: Decimal::zero(),
+            index: Decimal256::zero(),
             profit_to_distribute: Uint128::zero(),
             accumulated_profit: Uint128::zero(),
             total_supply: Uint128::zero(),

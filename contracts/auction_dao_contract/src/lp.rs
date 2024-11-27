@@ -1,6 +1,6 @@
 use auction_dao::state::{Config, Global, UserAccount};
 use cosmwasm_std::{
-    BankMsg, Coin, CosmosMsg, Decimal, Deps, DepsMut, Env, MessageInfo, Response, Timestamp,
+    BankMsg, Coin, CosmosMsg, Decimal256, Deps, DepsMut, Env, MessageInfo, Response, Timestamp,
     Uint128,
 };
 use injective_cosmwasm::{InjectiveMsgWrapper, InjectiveQueryWrapper};
@@ -178,20 +178,20 @@ pub fn update_global_index(global: &mut Global) {
         return;
     }
 
-    global.index = Decimal::from_ratio(global.profit_to_distribute, global.total_supply);
+    global.index = Decimal256::from_ratio(global.profit_to_distribute, global.total_supply);
     global.accumulated_profit += global.profit_to_distribute;
     global.profit_to_distribute = Uint128::zero();
 }
 
 pub fn update_user_reward(
     user_account: &mut UserAccount,
-    global_index: &Decimal,
+    global_index: &Decimal256,
 ) -> Result<(), ContractError> {
-    let reward = Decimal::from_atomics(user_account.deposited.u128(), 0)?
+    let reward = Decimal256::from_atomics(user_account.deposited.u128(), 0)?
         * (global_index - user_account.index);
 
     user_account.index = *global_index;
-    user_account.pending_reward += reward.to_uint_floor();
+    user_account.pending_reward += Uint128::try_from(reward.to_uint_floor())?;
 
     Ok(())
 }

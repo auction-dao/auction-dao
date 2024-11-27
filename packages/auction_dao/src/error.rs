@@ -1,6 +1,6 @@
 use std::{num::TryFromIntError, str::Utf8Error};
 
-use cosmwasm_std::{Decimal256RangeExceeded, DecimalRangeExceeded, StdError};
+use cosmwasm_std::{ConversionOverflowError, Decimal256RangeExceeded, StdError};
 use prost::{DecodeError, EncodeError};
 use thiserror::Error;
 
@@ -17,9 +17,6 @@ pub enum ContractError {
 
     #[error("Invalid denom")]
     InvalidDenom {},
-
-    #[error("Decimal range exceeded")]
-    DecimalRangeExceeded {},
 
     #[error("Decimal256 range exceeded")]
     Decimal256RangeExceeded {},
@@ -103,13 +100,6 @@ impl From<TryFromIntError> for ContractError {
     }
 }
 
-// Implement From<DecimalRangeExceeded> for ContractError
-impl From<DecimalRangeExceeded> for ContractError {
-    fn from(_: DecimalRangeExceeded) -> Self {
-        ContractError::DecimalRangeExceeded {}
-    }
-}
-
 impl From<Decimal256RangeExceeded> for ContractError {
     fn from(_: Decimal256RangeExceeded) -> Self {
         ContractError::Decimal256RangeExceeded {}
@@ -130,6 +120,12 @@ impl From<EncodeError> for ContractError {
 
 impl From<DecodeError> for ContractError {
     fn from(err: DecodeError) -> Self {
+        ContractError::Std(StdError::generic_err(err.to_string()))
+    }
+}
+
+impl From<ConversionOverflowError> for ContractError {
+    fn from(err: ConversionOverflowError) -> Self {
         ContractError::Std(StdError::generic_err(err.to_string()))
     }
 }
