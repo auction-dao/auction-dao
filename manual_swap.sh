@@ -11,9 +11,16 @@ if [ -z "$CONTRACT_ADDR" ]; then
     exit 1
 fi
 
-AMOUNT=1000000 # 1000 USDT
+AMOUNT=1000000000 # 1000 USDT
 ASSET="peggy0x87aB3B4C8661e07D6372361211B96ed4Dc36B1B5" 
 MARKET_ID="0x0611780ba69656949525013d947713300f56c37b6175e02f26bffa495c3208fe"
+
+BALANCE=$(injectived query bank balances \
+    $CONTRACT_ADDR \
+    --chain-id ${CHAIN_ID} --node ${RPC} \
+    -o json | jq -r '.balances[] | select(.denom=="'$ASSET'") | .amount')
+
+echo "contract balance before transfer: $BALANCE$ASSET"
 
 TX_HASH=$(echo $KEYPASSWD | \
     injectived tx bank send \

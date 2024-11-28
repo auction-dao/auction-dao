@@ -93,7 +93,7 @@ pub fn simulate_quote_offer(
         data: QuerySpotOrderbookRequest {
             market_id: market.market_id.clone(),
             order_side: OrderSide::Sell as i32,
-            limit_cumulative_notional: amount.to_string(),
+            limit_cumulative_notional: amount.to_string() + "000000000000000000",
             ..Default::default()
         }
         .into(),
@@ -176,7 +176,7 @@ pub fn simulate_base_offer(
         data: QuerySpotOrderbookRequest {
             market_id: market.market_id.clone(),
             order_side: OrderSide::Buy as i32,
-            limit_cumulative_quantity: quantity.to_string(),
+            limit_cumulative_quantity: quantity.to_string() + "000000000000000000",
             ..Default::default()
         }
         .into(),
