@@ -69,3 +69,23 @@ pub struct BidAttempt {
     pub round: u64,
     pub basket: Vec<Coin>,
 }
+
+impl BidAttempt {
+    pub fn manual_swap(contract_addr: Addr) -> Self {
+        let mut bid_attempt = BidAttempt::default();
+        bid_attempt.submitted_by = contract_addr;
+
+        return bid_attempt;
+    }
+}
+
+impl Default for BidAttempt {
+    fn default() -> Self {
+        BidAttempt {
+            amount: Uint128::zero(),
+            submitted_by: Addr::unchecked(""),
+            round: 0,
+            basket: vec![],
+        }
+    }
+}

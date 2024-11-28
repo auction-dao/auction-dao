@@ -1,5 +1,6 @@
 pub mod admins;
 pub mod auction;
+pub mod callback;
 pub mod contract;
 pub mod exchange;
 pub mod fixed_types;

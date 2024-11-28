@@ -1,30 +1,26 @@
-use std::str::FromStr;
-
-use auction_dao::state::{Config, Global};
-#[cfg(not(feature = "library"))]
-use cosmwasm_std::{
-    entry_point, to_json_binary, Binary, Deps, DepsMut, Env, MessageInfo, Response, Uint128,
-};
-use cosmwasm_std::{Decimal256, Uint256};
-use cw2::{get_contract_version, set_contract_version};
-
-use injective_cosmwasm::{
-    get_default_subaccount_id_for_checked_address, InjectiveMsgWrapper, InjectiveQueryWrapper,
-};
-
+use crate::admins::{delete_route, manual_swap, set_route};
+use crate::auction::{self};
+use crate::lp::{deposit, harvest, withdraw};
+use crate::state::{BID_ATTEMPT, BID_ATTEMPT_TRANSIENT, CONFIG, GLOBAL, SETTLED_AMOUNT_TRANSIENT};
+use crate::{admins, callback::callback, queries};
 use auction_dao::error::ContractError;
 use auction_dao::msg::{
     ExecuteMsg, InstantiateMsg, MigrateMsg, QueryMsg, SELL_ASSET_SUCCESS_REPLY_ID,
     TRY_BID_SUCCESS_REPLY_ID,
 };
-use prost::Message;
-
-use crate::admins::{delete_route, manual_swap, set_route};
-use crate::auction::{self};
-use crate::lp::{deposit, harvest, update_global_index, withdraw};
-use crate::state::{BID_ATTEMPT, BID_ATTEMPT_TRANSIENT, CONFIG, GLOBAL};
-use crate::{admins, queries};
+use auction_dao::state::{Config, Global};
+use cosmwasm_std::{
+    entry_point, to_json_binary, Binary, Deps, DepsMut, Env, MessageInfo, Response, Uint128,
+};
+use cosmwasm_std::{from_json, Decimal256, Uint256};
+use cw2::{get_contract_version, set_contract_version};
+use injective_cosmwasm::{
+    get_default_subaccount_id_for_checked_address, InjectiveMsgWrapper, InjectiveQueryWrapper,
+};
+use injective_std::types::cosmos::base::v1beta1::Coin;
 use injective_std::types::injective::exchange::v1beta1 as Exchange;
+use prost::Message;
+use std::str::FromStr;
 
 // version info for migration info
 const CONTRACT_NAME: &str = "crates.io:auction_dao";
@@ -71,6 +67,7 @@ pub fn execute(
     msg: ExecuteMsg,
 ) -> Result<Response<InjectiveMsgWrapper>, ContractError> {
     match msg {
+        ExecuteMsg::Callback(msg) => callback(deps, env, info, msg),
         ExecuteMsg::Deposit {} => deposit(deps, info),
         ExecuteMsg::Harvest {} => harvest(deps, info),
         ExecuteMsg::ManualExchangeSwap {
@@ -173,14 +170,22 @@ pub fn reply(
 
             let quantity_128 = Uint128::from_str(quantity.to_string().as_str())?;
 
-            // deps.api.debug(&format!("Trade data: {:?}", trade_data));
+            SETTLED_AMOUNT_TRANSIENT
+                .update(deps.storage, |amount| -> Result<_, ContractError> {
+                    Ok(amount + quantity_128)
+                })?;
 
-            let mut global = GLOBAL.load(deps.storage)?;
-            global.profit_to_distribute += quantity_128;
-            update_global_index(&mut global);
-            GLOBAL.save(deps.storage, &global)?;
+            let mut response = Response::new();
 
-            return Ok(Response::new());
+            if !msg.payload.is_empty() {
+                let asset = from_json::<Coin>(msg.payload)?;
+                response = response.add_attribute(
+                    format!("received_inj::{}", asset.denom),
+                    quantity_128.to_string(),
+                );
+            }
+
+            return Ok(response);
         }
         _ => Err(ContractError::InvalidReply(msg.id)),
     }

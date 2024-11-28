@@ -1,5 +1,6 @@
 use cosmwasm_schema::{cw_serde, QueryResponses};
 
+use crate::state::BidAttempt;
 #[allow(unused_imports)]
 use crate::state::{Config, Global, UserAccount};
 use cosmwasm_std::Uint128;
@@ -45,6 +46,12 @@ pub enum ExecuteMsg {
         market_id: String,
         asset: String,
     },
+    Callback(CallbackMsg),
+}
+
+#[cw_serde]
+pub enum CallbackMsg {
+    BidSettledSuccess { bid_attempt: BidAttempt },
 }
 
 #[cw_serde]
@@ -77,3 +84,4 @@ pub struct MigrateMsg {}
 
 pub const TRY_BID_SUCCESS_REPLY_ID: u64 = 1;
 pub const SELL_ASSET_SUCCESS_REPLY_ID: u64 = 2;
+pub const BID_SETTLED_SUCCESS_REPLY_ID: u64 = 3;

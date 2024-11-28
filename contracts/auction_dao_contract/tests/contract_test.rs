@@ -336,7 +336,7 @@ mod tests {
     }
 
     #[test]
-    fn test_routs() {
+    fn test_routes() {
         let app = init();
         let admin = &app
             .init_accounts(

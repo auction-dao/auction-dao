@@ -2,14 +2,15 @@ use auction_dao::{
     error::ContractError,
     state::{BidAttempt, Config, Global, SwapRoute, UserAccount},
 };
-use cosmwasm_std::{Deps, DepsMut, Order, StdResult, Storage};
+use cosmwasm_std::{Deps, DepsMut, Order, StdResult, Storage, Uint128};
 use cw_storage_plus::{Item, Map};
 use injective_cosmwasm::InjectiveQueryWrapper;
 
 pub const CONFIG: Item<Config> = Item::new("config");
 pub const GLOBAL: Item<Global> = Item::new("global");
 pub const BID_ATTEMPT: Item<BidAttempt> = Item::new("bid_attempt");
-pub const BID_ATTEMPT_TRANSIENT: Item<BidAttempt> = Item::new("bid_attempt");
+pub const BID_ATTEMPT_TRANSIENT: Item<BidAttempt> = Item::new("bid_attempt_transient");
+pub const SETTLED_AMOUNT_TRANSIENT: Item<Uint128> = Item::new("settled_amount_transient");
 pub const USER_ACCOUNTS: Map<&str, UserAccount> = Map::new("user_accounts");
 pub const SWAP_ROUTES: Map<(String, String), SwapRoute> = Map::new("swap_routes");
 

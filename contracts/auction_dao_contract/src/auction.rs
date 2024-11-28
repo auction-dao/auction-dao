@@ -1,13 +1,15 @@
 use crate::exchange::{simulate, swap};
 use crate::router::get_inj_value_asset;
-use crate::state::{read_swap_route, BID_ATTEMPT, BID_ATTEMPT_TRANSIENT, CONFIG};
-use auction_dao::msg::{SELL_ASSET_SUCCESS_REPLY_ID, TRY_BID_SUCCESS_REPLY_ID};
+use crate::state::{
+    read_swap_route, BID_ATTEMPT, BID_ATTEMPT_TRANSIENT, CONFIG, SETTLED_AMOUNT_TRANSIENT,
+};
+use auction_dao::msg::{ExecuteMsg, SELL_ASSET_SUCCESS_REPLY_ID, TRY_BID_SUCCESS_REPLY_ID};
 use auction_dao::state::BidAttempt;
 
 use auction_dao::{error::ContractError, types::BidResult};
 use cosmwasm_std::{
-    Addr, BankMsg, Coin, CosmosMsg, Decimal256, Deps, DepsMut, Env, Event, MessageInfo,
-    QueryRequest, Response, StdResult, SubMsg, Uint128, Uint256,
+    to_json_binary, Addr, CosmosMsg, Decimal256, Deps, DepsMut, Env, Event, MessageInfo,
+    QueryRequest, Response, StdResult, SubMsg, Uint128, Uint256, WasmMsg,
 };
 use injective_cosmwasm::{InjectiveMsgWrapper, InjectiveQueryWrapper};
 use injective_std::types::injective::auction::v1beta1::{
@@ -300,42 +302,49 @@ pub fn try_settle(
         }
 
         let amount = Uint128::from_str(&asset.amount)?;
-        let winning_reward =
-            amount.multiply_ratio(config.winning_bidder_reward_bps, Uint128::new(10000));
-        let dao_profit = amount - winning_reward;
-
-        if winning_reward > Uint128::zero() {
-            response = response.add_message(CosmosMsg::Bank(BankMsg::Send {
-                to_address: bid_attempt.submitted_by.to_string(),
-                amount: vec![Coin {
-                    denom: asset.denom.to_owned(),
-                    amount: winning_reward,
-                }],
-            }));
-        }
-
         let market_id = swap_route?.market_id;
         let msg = swap(
             deps.as_ref(),
             &env.contract.address,
-            dao_profit,
+            amount,
             market_id.as_str(),
             &asset.denom,
         )?;
 
-        let submsg = SubMsg::reply_on_success(msg, SELL_ASSET_SUCCESS_REPLY_ID);
+        let mut submsg = SubMsg::reply_on_success(msg, SELL_ASSET_SUCCESS_REPLY_ID);
+        submsg.payload = to_json_binary(asset)?;
 
         response = response
             .add_submessage(submsg)
-            .add_attribute(
-                format!("dao_profit::{}", asset.denom),
-                dao_profit.to_string(),
-            )
-            .add_attribute(
-                format!("bidder_award::{}", asset.denom),
-                winning_reward.to_string(),
-            );
+            .add_attribute(format!("swap_out::{}", asset.denom), amount.to_string())
     }
 
+    response = response.add_message(create_after_settle_message(
+        deps,
+        env.contract.address.as_str(),
+        &bid_attempt,
+    )?);
+
     Ok(response)
+}
+
+pub fn create_after_settle_message(
+    deps: DepsMut<InjectiveQueryWrapper>,
+    contract_addr: &str,
+    bid_attempt: &BidAttempt,
+) -> Result<CosmosMsg<InjectiveMsgWrapper>, ContractError> {
+    // set the transient settled amount to zero
+    // each of the sell asset submessages will add to the settled amount
+    SETTLED_AMOUNT_TRANSIENT.save(deps.storage, &Uint128::zero())?;
+
+    return Ok(CosmosMsg::Wasm(WasmMsg::Execute {
+        contract_addr: contract_addr.to_string(),
+        msg: to_json_binary(&ExecuteMsg::Callback(
+            auction_dao::msg::CallbackMsg::BidSettledSuccess {
+                bid_attempt: bid_attempt.to_owned(),
+            },
+        ))
+        .unwrap(),
+        funds: vec![],
+    }));
 }

@@ -1,14 +1,19 @@
 use crate::{
+    auction::create_after_settle_message,
     exchange::swap,
-    state::{read_swap_route, remove_swap_route, store_swap_route, CONFIG},
+    state::{
+        read_swap_route, remove_swap_route, store_swap_route, CONFIG, SETTLED_AMOUNT_TRANSIENT,
+    },
 };
 
-use auction_dao::error::ContractError;
+use auction_dao::{error::ContractError, state::BidAttempt};
 use auction_dao::{msg::SELL_ASSET_SUCCESS_REPLY_ID, state::SwapRoute};
 
 use auction_dao::msg::InstantiateMsg;
 
-use cosmwasm_std::{ensure, ensure_eq, Addr, Deps, DepsMut, Env, Response, SubMsg, Uint128};
+use cosmwasm_std::{
+    ensure, ensure_eq, to_json_binary, Addr, Coin, Deps, DepsMut, Env, Response, SubMsg, Uint128,
+};
 use injective_cosmwasm::{InjectiveMsgWrapper, InjectiveQuerier, InjectiveQueryWrapper, MarketId};
 
 pub fn verify_sender_is_admin(
@@ -150,10 +155,24 @@ pub fn manual_swap(
         asset,
     )?;
 
-    let submsg = SubMsg::reply_on_success(msg, SELL_ASSET_SUCCESS_REPLY_ID);
+    SETTLED_AMOUNT_TRANSIENT.save(deps.storage, &Uint128::zero())?;
+    let mut submsg = SubMsg::reply_on_success(msg, SELL_ASSET_SUCCESS_REPLY_ID);
+
+    submsg.payload = to_json_binary(&Coin {
+        denom: asset.to_string(),
+        amount,
+    })?;
+
+    let after_settle_msg = create_after_settle_message(
+        deps,
+        env.contract.address.as_str(),
+        &BidAttempt::manual_swap(env.contract.address.clone()),
+    )?;
 
     Ok(Response::new()
         .add_submessage(submsg)
+        .add_message(after_settle_msg)
+        .add_attribute(format!("swap_out::{}", asset), amount.to_string())
         .add_attribute("method", "manual_swap")
         .add_attribute("asset", asset)
         .add_attribute("amount", amount)

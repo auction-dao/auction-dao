@@ -194,10 +194,5 @@ mod tests {
             Uint128::new(47100000000000000000),
             "accumulated profit not equal"
         );
-        assert_ne!(
-            state.accumulated_profit,
-            Uint128::new(0),
-            "reward index not updated"
-        );
     }
 }
