@@ -1,3 +1,4 @@
+#!/bin/bash
 [ -f .env ] && export $(grep -v '^#' .env | xargs)
 
 echo "chain_id:" $CHAIN_ID
@@ -34,6 +35,7 @@ END
     # Perform actions if CONTRACT_ADDR exists
     TX_HASH=$(echo $KEYPASSWD | injectived tx wasm migrate \
       $CONTRACT_ADDR $CODE_ID "$MIGRATE_MSG" \
+      --chain-id ${CHAIN_ID} --node ${RPC} \
       --from $ADMIN --gas-prices 500000000inj \
       --gas auto --gas-adjustment 1.3 -o json -y | jq '.txhash' -r)
     echo "contract migrated, tx hash ${TX_HASH}"
@@ -64,6 +66,7 @@ END
     echo "instantiating the code id ${CODE_ID}"
     TX_HASH=$(echo $KEYPASSWD | injectived tx wasm instantiate \
       $CODE_ID "$INSTANTIATE_MSG" --from $ADMIN --admin $ADMIN \
+      --chain-id ${CHAIN_ID} --node ${RPC} \
       --gas-prices 500000000inj --gas auto --gas-adjustment 1.3 \
       --label "$LABEL" -o json -y | jq '.txhash' -r)
     echo "contract instantiated, tx hash ${TX_HASH}"
