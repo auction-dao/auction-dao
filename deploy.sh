@@ -46,8 +46,8 @@ else
           "accepted_denom": "inj",
           "swap_router": "${HELIX_ROUTER}",
           "bid_time_buffer": 5,
-          "withdraw_time_buffer": 18000,
-          "max_inj_offset_bps": "15000",
+          "withdraw_time_buffer": 7200,
+          "max_inj_offset_bps": "12500",
           "winning_bidder_reward_bps": "500"
         }
 END
