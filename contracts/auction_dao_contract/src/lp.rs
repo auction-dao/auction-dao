@@ -166,6 +166,8 @@ pub fn harvest(
 
     user_account.pending_reward = Uint128::zero();
 
+    USER_ACCOUNTS.save(deps.storage, user_addr, &user_account)?;
+
     Ok(Response::new()
         .add_messages(msgs)
         .add_attribute("method", "harvest")
