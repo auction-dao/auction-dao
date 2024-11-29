@@ -108,6 +108,7 @@ pub fn simulate_quote_offer(
         * Decimal256::from_str(&params.spot_atomic_market_order_fee_multiplier)?;
     // amount after fee
     amount = amount * (Decimal256::one() - fee);
+    let original_amount_to_swap_without_fee = amount.clone();
 
     // received quantity of base asset, e.g. INJ
     let mut quantity = Decimal256::zero();
@@ -138,17 +139,28 @@ pub fn simulate_quote_offer(
         }
     }
 
-    quantity = strip_min_tick(quantity, min_quantity_tick);
-
     if amount > Decimal256::zero() {
         return Err(ContractError::NotEnoughLiquidity {});
     }
 
-    let worst_acceptable_price = order_book.sells_price_level.last().unwrap().p.clone();
-
+    // this is the quantity of base asset we can buy
+    // but to be able to do such market order, we would need
+    // quantity * worst_acceptable_price amount of quote asset
+    // which might be more than the amount we have
+    quantity = strip_min_tick(quantity, min_quantity_tick);
     let quantity_int = Uint128::from_str(&quantity.to_uint_floor().to_string())?;
+    _ = quantity_int;
 
-    return Ok((quantity_int, worst_acceptable_price));
+    // we need to adjust amount of quantity to ask for to satisfy q * worst_acceptable_price < amount
+    let worst_acceptable_price = order_book.sells_price_level.last().unwrap().p.clone();
+    let mut quantity_satisfying_amount =
+        original_amount_to_swap_without_fee / Decimal256::from_str(&worst_acceptable_price)?;
+
+    quantity_satisfying_amount = strip_min_tick(quantity_satisfying_amount, min_quantity_tick);
+    let quantity_satisfying_amount_int =
+        Uint128::from_str(&quantity_satisfying_amount.to_uint_floor().to_string())?;
+
+    return Ok((quantity_satisfying_amount_int, worst_acceptable_price));
 }
 
 // potentially in future ASSET/INJ market, e.g.
