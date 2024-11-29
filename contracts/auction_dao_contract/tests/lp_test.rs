@@ -393,6 +393,134 @@ mod tests {
     }
 
     #[test]
+    fn deposit_inj_and_harvest_twice() {
+        let app = init();
+        let accounts = &app
+            .init_accounts(
+                &[
+                    Coin::new(10000000 * ONE_18, "inj"),
+                    Coin::new(100000 * ONE_6, "usdt"),
+                ],
+                3,
+            )
+            .unwrap();
+
+        let admin = &accounts[0];
+        let user = &accounts[1];
+        let user2 = &accounts[2];
+
+        let wasm: Wasm<'_, InjectiveTestApp> = Wasm::new(&app);
+        let bank = Bank::new(&app);
+
+        let deposited_amount = 10 * ONE_18;
+
+        // We send 2 * 10 inj to the basket to let us commit for the two users
+        bank.send(
+            MsgSend {
+                from_address: admin.address(),
+                to_address: AUCTION_VAULT_ADDRESS.to_string(),
+                amount: vec![Coin::new(2 * deposited_amount, "inj".to_string()).into()],
+            },
+            admin,
+        )
+        .unwrap();
+
+        let exchange = Exchange::new(&app);
+
+        let market_id = launch_realistic_inj_usdt_spot_market(&exchange, &admin);
+
+        create_realistic_inj_usdt_sell_orders_from_spreadsheet(&exchange, &market_id, &admin);
+
+        let router_contract_add = init_router_contract_inj(&wasm, admin);
+        let contract_addr = init_contract_inj(&wasm, admin, &router_contract_add);
+
+        wasm.execute::<ExecuteMsg>(
+            &contract_addr,
+            &ExecuteMsg::Deposit {},
+            &[Coin::new(deposited_amount, "inj")],
+            user,
+        )
+        .unwrap();
+
+        wasm.execute::<ExecuteMsg>(
+            &contract_addr,
+            &ExecuteMsg::Deposit {},
+            &[Coin::new(deposited_amount, "inj")],
+            user2,
+        )
+        .unwrap();
+
+        let usdt_profit = ONE_6 * 1000;
+
+        // send USDT profit to the contract
+        bank.send(
+            MsgSend {
+                from_address: admin.address(),
+                to_address: contract_addr.clone(),
+                amount: vec![Coin {
+                    amount: usdt_profit.into(),
+                    denom: "usdt".to_string(),
+                }
+                .into()],
+            },
+            &admin,
+        )
+        .unwrap();
+
+        // Swap USDT to INJ
+        wasm.execute::<ExecuteMsg>(
+            &contract_addr,
+            &ExecuteMsg::ManualExchangeSwap {
+                amount: usdt_profit.into(),
+                market_id: market_id.clone(),
+                asset: "usdt".to_string(),
+            },
+            &[],
+            admin,
+        )
+        .unwrap();
+
+        wasm.execute::<ExecuteMsg>(&contract_addr, &ExecuteMsg::Harvest {}, &[], user)
+            .unwrap();
+
+        let ua = wasm
+            .query::<QueryMsg, UserAccount>(
+                &contract_addr,
+                &QueryMsg::User {
+                    address: user.address(),
+                },
+            )
+            .unwrap();
+
+        assert!(
+            ua.pending_reward == Uint128::zero(),
+            "pending reward not zero"
+        );
+
+        let contract_balance_before_next_harvest = bank
+            .query_balance(&QueryBalanceRequest {
+                address: contract_addr.clone(),
+                denom: "inj".to_string(),
+            })
+            .unwrap();
+
+        wasm.execute::<ExecuteMsg>(&contract_addr, &ExecuteMsg::Harvest {}, &[], user)
+            .unwrap();
+
+        let r = bank
+            .query_balance(&QueryBalanceRequest {
+                address: contract_addr.clone(),
+                denom: "inj".to_string(),
+            })
+            .unwrap();
+
+        assert_eq!(
+            r.balance.unwrap().amount,
+            contract_balance_before_next_harvest.balance.unwrap().amount
+        );
+    }
+
+    #[test]
     fn deposit_inj_and_harvest_and_withdraw() {
         let app = init();
         let accounts = &app
