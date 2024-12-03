@@ -354,6 +354,24 @@ mod tests {
         let time_increase = u64::try_from(auction_end_time - current_time + 5).unwrap();
         app.increase_time(time_increase);
 
+        // try bid for the next auction, it should fail as not settled previous round
+        let try_bid_response = wasm.execute::<ExecuteMsg>(
+            &contract_addr,
+            &ExecuteMsg::TryBid {
+                round: current_auction_round + 1,
+            },
+            &[Coin::new(Uint128::one(), "inj")],
+            admin,
+        );
+        assert!(try_bid_response.is_err());
+        assert!(
+            try_bid_response
+                .unwrap_err()
+                .to_string()
+                .contains("Bid from previous needs to be settled"),
+            "incorrect try bid response"
+        );
+
         // try settle again
         let try_settle_response = wasm.execute::<ExecuteMsg>(
             &contract_addr,
