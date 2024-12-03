@@ -180,7 +180,7 @@ pub fn update_global_index(global: &mut Global) {
         return;
     }
 
-    global.index = Decimal256::from_ratio(global.profit_to_distribute, global.total_supply);
+    global.index += Decimal256::from_ratio(global.profit_to_distribute, global.total_supply);
     global.accumulated_profit += global.profit_to_distribute;
     global.profit_to_distribute = Uint128::zero();
 }
