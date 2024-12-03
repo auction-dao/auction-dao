@@ -21,6 +21,8 @@ jobs:
           toolchain: 1.82.0
           target: wasm32-unknown-unknown
           override: true
+      - name: Build optimised
+        run: ./build.sh
 
       - name: Run unit tests
         uses: actions-rs/cargo@v1
