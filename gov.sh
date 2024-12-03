@@ -47,6 +47,9 @@ We kindly request the community's support in approving this proposal to store th
 By doing so, we enable a permissionless, community-driven platform that enhances participation in the Injective ecosystem.
 
 Thank you for your consideration.
+Auction DAO Team
+https://auctiondao.bid/
+
 END
 )
 
