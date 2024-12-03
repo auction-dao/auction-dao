@@ -48,7 +48,7 @@ else
           "bid_time_buffer": 5,
           "withdraw_time_buffer": 7200,
           "max_inj_offset_bps": "12500",
-          "winning_bidder_reward_bps": "5000"
+          "winning_bidder_reward_bps": "500"
         }
 END
 )
