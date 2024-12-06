@@ -348,3 +348,40 @@ pub fn create_after_settle_message(
         funds: vec![],
     }));
 }
+
+// method for clearing attempt bid which is outbid by another user
+// if we enable contract bidding in last seconds, this method
+// won't be most probably used
+
+// only in cases where we have large bid_time_buffer_secs, we
+// bid and then clear the bid if we are outbid in order to enable
+// users withdraw and deposit
+pub fn try_clear_current_bid(
+    deps: DepsMut<InjectiveQueryWrapper>,
+    env: Env,
+    _sender: &Addr,
+) -> Result<Response<InjectiveMsgWrapper>, ContractError> {
+    let bid_attempt = match BID_ATTEMPT.may_load(deps.storage)? {
+        Some(bid_attempt) => bid_attempt,
+        None => return Err(ContractError::BidAttemptNotFound {}),
+    };
+
+    let current_auction = get_current_auction(deps.as_ref())?;
+
+    if &bid_attempt.round != &current_auction.auctionRound {
+        return Err(ContractError::BidAttemptRoundNotFinished(
+            bid_attempt.round,
+            current_auction.auctionRound,
+        ));
+    }
+
+    if &current_auction.highestBidder == &env.contract.address.to_string() {
+        return Err(ContractError::AlreadyHighestBidder {});
+    }
+
+    BID_ATTEMPT.remove(deps.storage);
+
+    return Ok(Response::new()
+        .add_attribute("method", "try_clear_current_bid")
+        .add_attribute("round", bid_attempt.round.to_string()));
+}

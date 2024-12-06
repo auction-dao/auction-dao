@@ -9,7 +9,7 @@ use auction_dao::error::ContractError;
 
 use crate::{
     auction::{get_current_auction, get_current_auction_value_using_exchange},
-    state::{CONFIG, GLOBAL, USER_ACCOUNTS},
+    state::{BID_ATTEMPT, CONFIG, GLOBAL, USER_ACCOUNTS},
 };
 
 /*   Dynamic max_tokens based on current basket value
@@ -45,6 +45,11 @@ pub fn deposit(
         return Err(ContractError::MaxTokensExceeded {});
     }
 
+    // Check if there is a bid, if so, we can't deposit
+    if let Some(_) = BID_ATTEMPT.may_load(deps.storage)? {
+        return Err(ContractError::ActiveBid {});
+    }
+
     let user_addr = info.sender.as_str();
 
     let mut user_account = USER_ACCOUNTS
@@ -71,6 +76,11 @@ pub fn withdraw(
     info: MessageInfo,
     amount: Uint128,
 ) -> Result<Response<InjectiveMsgWrapper>, ContractError> {
+    // Check if there is a bid
+    if let Some(_) = BID_ATTEMPT.may_load(deps.storage)? {
+        return Err(ContractError::ActiveBid {});
+    }
+
     let user_addr = info.sender.as_str();
 
     let mut user_account = USER_ACCOUNTS

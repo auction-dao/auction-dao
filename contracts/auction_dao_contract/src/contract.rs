@@ -78,6 +78,9 @@ pub fn execute(
         ExecuteMsg::Withdraw { amount } => withdraw(deps, env, info, amount),
         ExecuteMsg::TryBid { round } => auction::try_bid(deps, env, info, round),
         ExecuteMsg::TrySettle {} => auction::try_settle(deps, env, &info.sender),
+        ExecuteMsg::TryClearCurrentBid {} => {
+            auction::try_clear_current_bid(deps, env, &info.sender)
+        }
         ExecuteMsg::UpdateConfig { new_config } => {
             admins::update_config(deps, &info.sender, new_config)
         }
@@ -136,6 +139,7 @@ pub fn reply(
             // MsgBidResponse is just empty struct, no reason to decode
             let bid_attempt_cache = BID_ATTEMPT_TRANSIENT.load(deps.storage)?;
             BID_ATTEMPT.save(deps.storage, &bid_attempt_cache)?;
+            BID_ATTEMPT_TRANSIENT.remove(deps.storage);
 
             return Ok(Response::new());
         }

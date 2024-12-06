@@ -57,8 +57,8 @@ pub enum ContractError {
     #[error("Bid from previous needs to be settled")]
     UnsettledPreviousBid {},
 
-    #[error("Invalid asset for direct swap")]
-    BidAttemptAlreadyFinished {},
+    #[error("There is an active bid")]
+    ActiveBid {},
 
     #[error("No swap route not found from {0} to {1}")]
     NoSwapRouteFound(String, String),

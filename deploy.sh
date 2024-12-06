@@ -1,6 +1,8 @@
 #!/bin/bash
 [ -f .env ] && export $(grep -v '^#' .env | xargs)
 
+./build.sh
+
 echo "chain_id:" $CHAIN_ID
 echo "rpc:" $RPC
 

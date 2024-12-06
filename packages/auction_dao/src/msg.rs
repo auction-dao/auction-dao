@@ -29,6 +29,7 @@ pub enum ExecuteMsg {
         round: u64,
     },
     TrySettle {},
+    TryClearCurrentBid {},
     UpdateConfig {
         new_config: InstantiateMsg,
     },
