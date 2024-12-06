@@ -369,10 +369,7 @@ pub fn try_clear_current_bid(
     let current_auction = get_current_auction(deps.as_ref())?;
 
     if &bid_attempt.round != &current_auction.auctionRound {
-        return Err(ContractError::BidAttemptRoundNotFinished(
-            bid_attempt.round,
-            current_auction.auctionRound,
-        ));
+        return Err(ContractError::UnsettledPreviousBid {});
     }
 
     if &current_auction.highestBidder == &env.contract.address.to_string() {

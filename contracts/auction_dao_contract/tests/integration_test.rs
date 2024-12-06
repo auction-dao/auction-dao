@@ -273,6 +273,22 @@ mod tests {
 
         assert!(try_bid_response.is_ok());
 
+        // try clear bid fails, because contract is highest bidder and current auction is still active
+        let try_clear_bid_response = wasm.execute::<ExecuteMsg>(
+            &contract_addr,
+            &ExecuteMsg::TryClearCurrentBid {},
+            &[],
+            admin,
+        );
+        assert!(try_clear_bid_response.is_err());
+        assert!(
+            try_clear_bid_response
+                .unwrap_err()
+                .to_string()
+                .contains("Contract is the highest bidder"),
+            "incorrect query result error message"
+        );
+
         // We do it again to ensure now it fails cause already the winner
         let try_bid_response = wasm.execute::<ExecuteMsg>(
             &contract_addr,
@@ -304,8 +320,15 @@ mod tests {
             },
             admin,
         );
-
         assert!(random_bid_respone.is_ok());
+
+        let try_clear_bid_response = wasm.execute::<ExecuteMsg>(
+            &contract_addr,
+            &ExecuteMsg::TryClearCurrentBid {},
+            &[],
+            admin,
+        );
+        assert!(try_clear_bid_response.is_ok());
 
         // We bid again, should succed now
         let try_bid_response = wasm.execute::<ExecuteMsg>(
@@ -370,6 +393,22 @@ mod tests {
                 .to_string()
                 .contains("Bid from previous needs to be settled"),
             "incorrect try bid response"
+        );
+
+        // try clear bid fails, because there is next auction active
+        let try_clear_bid_response = wasm.execute::<ExecuteMsg>(
+            &contract_addr,
+            &ExecuteMsg::TryClearCurrentBid {},
+            &[],
+            admin,
+        );
+        assert!(try_clear_bid_response.is_err());
+        assert!(
+            try_clear_bid_response
+                .unwrap_err()
+                .to_string()
+                .contains("Bid from previous needs to be settled"),
+            "incorrect query result error message"
         );
 
         // try settle again
