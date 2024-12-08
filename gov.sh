@@ -1,6 +1,8 @@
 #!/bin/bash
 [ -f .env ] && export $(grep -v '^#' .env | xargs)
 
+./build.sh
+
 echo "chain_id:" $CHAIN_ID
 echo "rpc:" $RPC
 
@@ -58,7 +60,7 @@ TX_HASH=$(echo $KEYPASSWD | injectived --chain-id ${CHAIN_ID} --node ${RPC} \
     tx wasm submit-proposal wasm-store ${ARTIFACT} \
     --title="Store Auction DAO Smart Contract Code" \
     --summary="${PROPOSAL_MSG}" \
-    --instantiate-anyof-addresses "${ADMIN}" \
+    --instantiate-anyof-addresses "${ADMIN},inj1j55d6mj5j3hdzfk5v8m3a9zthq7m7hpkfswvq0" \
     --broadcast-mode=sync \
     --from ${ADMIN} \
     --deposit 50000000000000000000inj \
