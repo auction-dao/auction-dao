@@ -11,16 +11,17 @@ mod tests {
     };
     use auction_dao::{
         error::ContractError,
-        msg::{ExecuteMsg, QueryMsg},
+        msg::{ExecuteMsg, InstantiateMsg, QueryMsg},
         state::{Global, UserAccount},
     };
 
     use cosmwasm_std::{Coin, Uint128};
     use injective_std::types::{
         cosmos::bank::v1beta1::{MsgSend, QueryBalanceRequest},
-        injective::auction::v1beta1::QueryCurrentAuctionBasketResponse,
+        cosmos::base::v1beta1::Coin as BidCoin,
+        injective::auction::v1beta1::{MsgBid, QueryCurrentAuctionBasketResponse},
     };
-    use injective_test_tube::{Bank, Exchange, InjectiveTestApp, Wasm};
+    use injective_test_tube::{Auction, Bank, Exchange, InjectiveTestApp, Wasm};
     use test_tube_inj::{Account, Module};
 
     #[test]
@@ -1185,5 +1186,368 @@ mod tests {
             .unwrap();
 
         assert_eq!(r.balance.unwrap().amount, "0".to_string());
+    }
+
+    #[test]
+    fn deposit_and_withdraw_after_bid_attempt() {
+        let app = init();
+        let admin_initial_inj = 10000000 * ONE_18;
+        let initial_inj = 100 * ONE_18;
+        let accounts = &app
+            .init_accounts(
+                &[
+                    Coin::new(admin_initial_inj, "inj"),
+                    Coin::new(100000 * ONE_6, "usdt"),
+                ],
+                1,
+            )
+            .unwrap();
+
+        let admin = &accounts[0];
+
+        let accounts = &app
+            .init_accounts(&[Coin::new(initial_inj, "inj")], 2)
+            .unwrap();
+        let user = &accounts[0];
+        let user2 = &accounts[1];
+
+        let auction = Auction::new(&app);
+        let wasm: Wasm<'_, InjectiveTestApp> = Wasm::new(&app);
+        let bank = Bank::new(&app);
+
+        let deposited_amount = 10 * ONE_18;
+
+        // We send 3 * 10 inj to the basket to let us commit for the two users
+        bank.send(
+            MsgSend {
+                from_address: admin.address(),
+                to_address: AUCTION_VAULT_ADDRESS.to_string(),
+                amount: vec![Coin::new(3 * deposited_amount, "inj".to_string()).into()],
+            },
+            admin,
+        )
+        .unwrap();
+
+        let router_contract_add = init_router_contract_inj(&wasm, admin);
+        let contract_addr = init_contract_inj(&wasm, admin, &router_contract_add);
+
+        wasm.execute::<ExecuteMsg>(
+            &contract_addr,
+            &ExecuteMsg::Deposit {},
+            &[Coin::new(deposited_amount, "inj")],
+            user,
+        )
+        .unwrap();
+
+        wasm.execute::<ExecuteMsg>(
+            &contract_addr,
+            &ExecuteMsg::Deposit {},
+            &[Coin::new(deposited_amount, "inj")],
+            user2,
+        )
+        .unwrap();
+
+        let current_auction_response = wasm
+            .query::<QueryMsg, QueryCurrentAuctionBasketResponse>(
+                &contract_addr,
+                &QueryMsg::CurrentAuctionBasket {},
+            )
+            .unwrap();
+
+        let current_auction_round = current_auction_response.auctionRound;
+        let auction_end_time = current_auction_response.auctionClosingTime;
+        let current_time = app.get_block_time_seconds();
+
+        let time_increase = u64::try_from(auction_end_time - current_time - 5).unwrap();
+        app.increase_time(time_increase);
+
+        let try_bid_response = wasm.execute::<ExecuteMsg>(
+            &contract_addr,
+            &ExecuteMsg::TryBid {
+                round: current_auction_round,
+            },
+            &[Coin::new(Uint128::one(), "inj")],
+            user,
+        );
+        assert!(try_bid_response.is_ok());
+
+        // withdrawing should fail if there is an active bid
+        let try_withdraw_response = wasm.execute::<ExecuteMsg>(
+            &contract_addr,
+            &ExecuteMsg::Withdraw {
+                amount: (deposited_amount).into(),
+            },
+            &[],
+            user,
+        );
+        assert!(try_withdraw_response.is_err());
+
+        // depositing should fail if there is an active bid
+        let try_deposit_response = wasm.execute::<ExecuteMsg>(
+            &contract_addr,
+            &ExecuteMsg::Deposit {},
+            &[Coin::new(deposited_amount, "inj")],
+            user,
+        );
+        assert!(try_deposit_response.is_err());
+
+        // current bid is active and contract is highest bidder
+        // try clear bid should fail therefore
+        let try_clear_bid_response = wasm.execute::<ExecuteMsg>(
+            &contract_addr,
+            &ExecuteMsg::TryClearCurrentBid {},
+            &[Coin::new(deposited_amount, "inj")],
+            user,
+        );
+        assert!(try_clear_bid_response.is_err());
+
+        // somebody outbids the contract
+
+        // We also simulate someone else is bidding
+        let random_bid_response = auction.msg_bid(
+            MsgBid {
+                bid_amount: Some(BidCoin {
+                    amount: ONE_18.to_string(),
+                    denom: "inj".to_string(),
+                }),
+                round: current_auction_round,
+                sender: admin.address(),
+            },
+            admin,
+        );
+        assert!(random_bid_response.is_ok());
+
+        // contract is not highest bidder, therefore we can clear the bid
+        let try_clear_bid_response = wasm.execute::<ExecuteMsg>(
+            &contract_addr,
+            &ExecuteMsg::TryClearCurrentBid {},
+            &[Coin::new(deposited_amount, "inj")],
+            user,
+        );
+        assert!(try_clear_bid_response.is_ok());
+
+        //users can deposit
+        wasm.execute::<ExecuteMsg>(
+            &contract_addr,
+            &ExecuteMsg::Deposit {},
+            &[Coin::new(deposited_amount, "inj")],
+            user,
+        )
+        .unwrap();
+
+        //users can withdraw, for testing admin updates config to remove time buffer
+        wasm.execute::<ExecuteMsg>(
+            &contract_addr,
+            &ExecuteMsg::UpdateConfig {
+                new_config: InstantiateMsg {
+                    admin: admin.address(),
+                    accepted_denom: "inj".to_string(),
+                    swap_router: router_contract_add.to_string(),
+                    bid_time_buffer: 5,
+                    withdraw_time_buffer: 0,
+                    max_inj_offset_bps: Uint128::from(15000u128),
+                    winning_bidder_reward_bps: Uint128::from(500u128),
+                },
+            },
+            &[],
+            admin,
+        )
+        .unwrap();
+
+        wasm.execute::<ExecuteMsg>(
+            &contract_addr,
+            &ExecuteMsg::Withdraw {
+                amount: (2 * deposited_amount).into(),
+            },
+            &[],
+            user,
+        )
+        .unwrap();
+
+        wasm.execute::<ExecuteMsg>(
+            &contract_addr,
+            &ExecuteMsg::Withdraw {
+                amount: (deposited_amount).into(),
+            },
+            &[],
+            user2,
+        )
+        .unwrap();
+    }
+
+    #[test]
+    fn deposit_and_withdraw_after_try_settle() {
+        let app = init();
+        let admin_initial_inj = 10000000 * ONE_18;
+        let initial_inj = 100 * ONE_18;
+        let accounts = &app
+            .init_accounts(
+                &[
+                    Coin::new(admin_initial_inj, "inj"),
+                    Coin::new(100000 * ONE_6, "usdt"),
+                ],
+                1,
+            )
+            .unwrap();
+
+        let admin = &accounts[0];
+
+        let accounts = &app
+            .init_accounts(&[Coin::new(initial_inj, "inj")], 2)
+            .unwrap();
+        let user = &accounts[0];
+        let user2 = &accounts[1];
+
+        let wasm: Wasm<'_, InjectiveTestApp> = Wasm::new(&app);
+        let bank = Bank::new(&app);
+
+        let deposited_amount = 10 * ONE_18;
+
+        // We send 3 * 10 inj to the basket to let us commit for the two users
+        bank.send(
+            MsgSend {
+                from_address: admin.address(),
+                to_address: AUCTION_VAULT_ADDRESS.to_string(),
+                amount: vec![Coin::new(3 * deposited_amount, "inj".to_string()).into()],
+            },
+            admin,
+        )
+        .unwrap();
+
+        let router_contract_add = init_router_contract_inj(&wasm, admin);
+        let contract_addr = init_contract_inj(&wasm, admin, &router_contract_add);
+
+        wasm.execute::<ExecuteMsg>(
+            &contract_addr,
+            &ExecuteMsg::Deposit {},
+            &[Coin::new(deposited_amount, "inj")],
+            user,
+        )
+        .unwrap();
+
+        wasm.execute::<ExecuteMsg>(
+            &contract_addr,
+            &ExecuteMsg::Deposit {},
+            &[Coin::new(deposited_amount, "inj")],
+            user2,
+        )
+        .unwrap();
+
+        let current_auction_response = wasm
+            .query::<QueryMsg, QueryCurrentAuctionBasketResponse>(
+                &contract_addr,
+                &QueryMsg::CurrentAuctionBasket {},
+            )
+            .unwrap();
+
+        let current_auction_round = current_auction_response.auctionRound;
+        let auction_end_time = current_auction_response.auctionClosingTime;
+        let current_time = app.get_block_time_seconds();
+
+        let time_increase = u64::try_from(auction_end_time - current_time - 5).unwrap();
+        app.increase_time(time_increase);
+
+        let try_bid_response = wasm.execute::<ExecuteMsg>(
+            &contract_addr,
+            &ExecuteMsg::TryBid {
+                round: current_auction_round,
+            },
+            &[Coin::new(Uint128::one(), "inj")],
+            user,
+        );
+        assert!(try_bid_response.is_ok());
+
+        // withdrawing should fail if there is an active bid
+        let try_withdraw_response = wasm.execute::<ExecuteMsg>(
+            &contract_addr,
+            &ExecuteMsg::Withdraw {
+                amount: (deposited_amount).into(),
+            },
+            &[],
+            user,
+        );
+        assert!(try_withdraw_response.is_err());
+
+        // depositing should fail if there is an active bid
+        let try_deposit_response = wasm.execute::<ExecuteMsg>(
+            &contract_addr,
+            &ExecuteMsg::Deposit {},
+            &[Coin::new(deposited_amount, "inj")],
+            user,
+        );
+        assert!(try_deposit_response.is_err());
+
+        // current bid is active and contract is highest bidder
+        // try clear bid should fail therefore
+        let try_clear_bid_response = wasm.execute::<ExecuteMsg>(
+            &contract_addr,
+            &ExecuteMsg::TryClearCurrentBid {},
+            &[Coin::new(deposited_amount, "inj")],
+            user,
+        );
+        assert!(try_clear_bid_response.is_err());
+
+        let current_time = app.get_block_time_seconds();
+
+        let time_increase = u64::try_from(auction_end_time - current_time + 5).unwrap();
+        app.increase_time(time_increase);
+
+        // the contract won the auction, there is another round started
+        // clear should fail
+        let try_clear_bid_response = wasm.execute::<ExecuteMsg>(
+            &contract_addr,
+            &ExecuteMsg::TryClearCurrentBid {},
+            &[Coin::new(deposited_amount, "inj")],
+            user,
+        );
+        assert!(try_clear_bid_response.is_err());
+
+        let try_settle_response = wasm.execute::<ExecuteMsg>(
+            &contract_addr,
+            &ExecuteMsg::TrySettle {},
+            &[Coin::new(deposited_amount, "inj")],
+            user,
+        );
+        assert!(try_settle_response.is_ok());
+
+        // send something to the new auction again
+        bank.send(
+            MsgSend {
+                from_address: admin.address(),
+                to_address: AUCTION_VAULT_ADDRESS.to_string(),
+                amount: vec![Coin::new(3 * deposited_amount, "inj".to_string()).into()],
+            },
+            admin,
+        )
+        .unwrap();
+
+        //users can deposit
+        wasm.execute::<ExecuteMsg>(
+            &contract_addr,
+            &ExecuteMsg::Deposit {},
+            &[Coin::new(deposited_amount, "inj")],
+            user,
+        )
+        .unwrap();
+
+        wasm.execute::<ExecuteMsg>(
+            &contract_addr,
+            &ExecuteMsg::Withdraw {
+                amount: (deposited_amount).into(),
+            },
+            &[],
+            user2,
+        )
+        .unwrap();
+
+        wasm.execute::<ExecuteMsg>(
+            &contract_addr,
+            &ExecuteMsg::Withdraw {
+                amount: (2 * deposited_amount).into(),
+            },
+            &[],
+            user,
+        )
+        .unwrap();
     }
 }
