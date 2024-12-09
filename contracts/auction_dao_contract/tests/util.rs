@@ -20,6 +20,7 @@ pub mod tests {
     pub const ONE_6: u128 = 1_000_000u128;
     pub const USDT: &str = "usdt";
     pub const INJ: &str = "inj";
+    pub const HINJ: &str = "hinj";
     //
     pub const AUCTION_VAULT_ADDRESS: &str = "inj1j4yzhgjm00ch3h0p9kel7g8sp6g045qf32pzlj";
 
@@ -128,6 +129,21 @@ pub mod tests {
             dec_to_proto(FPDecimal::must_from_str("0.000000000000001")).as_str(),
             dec_to_proto(FPDecimal::must_from_str("1000000000000000")).as_str(),
             dec_to_proto(FPDecimal::must_from_str("1000000")).as_str(),
+        )
+    }
+
+    pub fn launch_realistic_hinj_inj_spot_market(
+        exchange: &Exchange<InjectiveTestApp>,
+        signer: &SigningAccount,
+    ) -> String {
+        launch_custom_spot_market(
+            exchange,
+            signer,
+            HINJ,
+            INJ,
+            dec_to_proto(FPDecimal::must_from_str("0.0001")).as_str(),
+            dec_to_proto(FPDecimal::must_from_str("1000000000000000")).as_str(),
+            dec_to_proto(FPDecimal::must_from_str("10000000000000000")).as_str(),
         )
     }
 
@@ -261,6 +277,82 @@ pub mod tests {
             "899501.001",
             Decimals::Eighteen,
             Decimals::Six,
+        );
+    }
+
+    pub fn create_realistic_hinj_inj_buy_orders_from_spreadsheet(
+        exchange: &Exchange<InjectiveTestApp>,
+        market_id: &str,
+        trader1: &SigningAccount,
+    ) {
+        create_realistic_limit_order(
+            exchange,
+            trader1,
+            market_id,
+            OrderSide::Buy,
+            "0.9811",
+            "9.894",
+            Decimals::Eighteen,
+            Decimals::Eighteen,
+        );
+
+        create_realistic_limit_order(
+            exchange,
+            trader1,
+            market_id,
+            OrderSide::Buy,
+            "0.9810",
+            "10.96",
+            Decimals::Eighteen,
+            Decimals::Eighteen,
+        );
+
+        create_realistic_limit_order(
+            exchange,
+            trader1,
+            market_id,
+            OrderSide::Buy,
+            "0.9809",
+            "24.724",
+            Decimals::Eighteen,
+            Decimals::Eighteen,
+        );
+    }
+
+    pub fn create_realistic_hinj_inj_sell_orders_from_spreadsheet(
+        exchange: &Exchange<InjectiveTestApp>,
+        market_id: &str,
+        trader1: &SigningAccount,
+    ) {
+        create_realistic_limit_order(
+            exchange,
+            trader1,
+            market_id,
+            OrderSide::Sell,
+            "0.9812",
+            "2.351",
+            Decimals::Eighteen,
+            Decimals::Eighteen,
+        );
+        create_realistic_limit_order(
+            exchange,
+            trader1,
+            market_id,
+            OrderSide::Sell,
+            "0.9813",
+            "16.001",
+            Decimals::Eighteen,
+            Decimals::Eighteen,
+        );
+        create_realistic_limit_order(
+            exchange,
+            trader1,
+            market_id,
+            OrderSide::Sell,
+            "0.9814",
+            "28.001",
+            Decimals::Eighteen,
+            Decimals::Eighteen,
         );
     }
 

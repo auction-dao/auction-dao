@@ -21,6 +21,7 @@ pub fn callback(
         auction_dao::msg::CallbackMsg::BidSettledSuccess { bid_attempt } => {
             let bid_amount = bid_attempt.amount;
             let received_from_basket_sell = SETTLED_AMOUNT_TRANSIENT.load(deps.as_ref().storage)?;
+            SETTLED_AMOUNT_TRANSIENT.remove(deps.storage);
 
             let profit = received_from_basket_sell.saturating_sub(bid_amount);
             let config = CONFIG.load(deps.storage)?;

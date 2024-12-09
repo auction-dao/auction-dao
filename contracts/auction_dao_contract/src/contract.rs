@@ -8,7 +8,7 @@ use auction_dao::msg::{
     ExecuteMsg, InstantiateMsg, MigrateMsg, QueryMsg, SELL_ASSET_SUCCESS_REPLY_ID,
     TRY_BID_SUCCESS_REPLY_ID,
 };
-use auction_dao::state::{Config, Global};
+use auction_dao::state::{Config, Global, SellAssetPayload, SellType};
 use cosmwasm_std::{
     entry_point, to_json_binary, Binary, Deps, DepsMut, Env, MessageInfo, Response, Uint128,
 };
@@ -17,7 +17,6 @@ use cw2::{get_contract_version, set_contract_version};
 use injective_cosmwasm::{
     get_default_subaccount_id_for_checked_address, InjectiveMsgWrapper, InjectiveQueryWrapper,
 };
-use injective_std::types::cosmos::base::v1beta1::Coin;
 use injective_std::types::injective::exchange::v1beta1 as Exchange;
 use prost::Message;
 use std::str::FromStr;
@@ -169,25 +168,39 @@ pub fn reply(
                 .ok_or_else(|| ContractError::SubMsgFailure("No trade data".to_owned()))
                 .unwrap();
 
-            let quantity = Decimal256::from_atomics(Uint256::from_str(&trade_data.quantity)?, 18)?
-                .to_uint_floor();
+            if msg.payload.is_empty() {
+                return Err(ContractError::EmptySellAssetPayload {});
+            }
 
-            let quantity_128 = Uint128::from_str(quantity.to_string().as_str())?;
+            let payload = from_json::<SellAssetPayload>(msg.payload)?;
+
+            // deps.api.debug(&format!("Trade data: {:?}", trade_data));
+
+            let received = match payload.sell_type {
+                SellType::Quote => {
+                    Decimal256::from_atomics(Uint256::from_str(&trade_data.quantity)?, 18)?
+                        .to_uint_floor()
+                }
+                SellType::Base => {
+                    let q = Decimal256::from_atomics(Uint256::from_str(&trade_data.quantity)?, 18)?;
+                    let p = Decimal256::from_atomics(Uint256::from_str(&trade_data.price)?, 18)?;
+                    let fee = Decimal256::from_atomics(Uint256::from_str(&trade_data.fee)?, 18)?;
+
+                    (q * p - fee).to_uint_floor()
+                }
+            };
+
+            let received_u128 = Uint128::from_str(received.to_string().as_str())?;
 
             SETTLED_AMOUNT_TRANSIENT
                 .update(deps.storage, |amount| -> Result<_, ContractError> {
-                    Ok(amount + quantity_128)
+                    Ok(amount + received_u128)
                 })?;
 
-            let mut response = Response::new();
-
-            if !msg.payload.is_empty() {
-                let asset = from_json::<Coin>(msg.payload)?;
-                response = response.add_attribute(
-                    format!("received_inj::{}", asset.denom),
-                    quantity_128.to_string(),
-                );
-            }
+            let response = Response::new().add_attribute(
+                format!("received_inj::{}", payload.coin.denom),
+                received_u128.to_string(),
+            );
 
             return Ok(response);
         }

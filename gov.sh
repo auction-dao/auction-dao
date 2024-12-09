@@ -20,7 +20,7 @@ Key Features:
 =============
 
 Transparent and Open Source: The project is fully open-sourced on GitHub, promoting transparency and community collaboration.
-You can find the repository here: https://github.com/auction-dao/auction-dao
+You can find the repository here: https://github.com/auction-dao/auction-dao/tree/c74381db80755e3161aaaaaacd25dab82fd0c7ad
 
 Tested and Ready: The smart contract has been thoroughly tested using Injective's testing tools, including injective-test-tube.
 It has been deployed on both private and public testnets to ensure reliability and security. Please follow https://dev.auctiondao.bid/

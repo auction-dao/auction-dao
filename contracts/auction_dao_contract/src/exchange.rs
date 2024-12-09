@@ -7,7 +7,7 @@ use crate::{
     fixed_types::{Params, QueryExchangeParamsResponse, QuerySpotMarketResponse, SpotMarket},
     state::CONFIG,
 };
-use auction_dao::error::ContractError;
+use auction_dao::{error::ContractError, state::SellType};
 use cosmwasm_std::{Addr, CosmosMsg, Decimal256, Deps, QueryRequest, Uint128};
 use injective_cosmwasm::{
     create_spot_market_order_msg, InjectiveMsgWrapper, InjectiveQueryWrapper, MarketId, OrderSide,
@@ -303,7 +303,7 @@ pub fn swap(
     amount: Uint128,
     market_id: &str,
     asset: &str,
-) -> Result<CosmosMsg<InjectiveMsgWrapper>, ContractError> {
+) -> Result<(CosmosMsg<InjectiveMsgWrapper>, SellType), ContractError> {
     let market = get_market(&market_id, deps)?;
     let params = get_exchange_params(deps)?;
     let config = CONFIG.load(deps.storage)?;
@@ -322,7 +322,7 @@ pub fn swap(
             &worst_price,
             OrderType::SellAtomic,
         )?;
-        Ok(msg)
+        Ok((msg, SellType::Base))
     } else if market.quote_denom == asset {
         // swapping quote asset for base asset aka buy order
         // e.g. buying INJ with USDT
@@ -336,7 +336,7 @@ pub fn swap(
             &worst_price,
             OrderType::BuyAtomic,
         )?;
-        Ok(msg)
+        Ok((msg, SellType::Quote))
     } else {
         return Err(ContractError::AssetNotFound {});
     }

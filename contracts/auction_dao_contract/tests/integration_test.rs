@@ -3,14 +3,19 @@ mod util;
 mod tests {
 
     use crate::util::tests::{
-        create_realistic_inj_usdt_buy_orders_from_spreadsheet,
+        assert_approx_eq_uint128, create_realistic_inj_usdt_buy_orders_from_spreadsheet,
         create_realistic_inj_usdt_sell_orders_from_spreadsheet, init, init_contract_inj,
         init_router_contract_inj, launch_realistic_inj_usdt_spot_market, AUCTION_VAULT_ADDRESS,
-        ONE_18, ONE_6,
+        INJ, ONE_18, ONE_6,
     };
-    use auction_dao::msg::{ExecuteMsg, QueryMsg};
+    use auction_dao::{
+        msg::{ExecuteMsg, QueryMsg},
+        state::Global,
+    };
 
-    use injective_std::types::cosmos::base::v1beta1::Coin as BidCoin;
+    use injective_std::types::cosmos::{
+        bank::v1beta1::QueryBalanceRequest, base::v1beta1::Coin as BidCoin,
+    };
 
     use cosmwasm_std::{Coin, Uint128};
     use injective_std::types::{
@@ -23,19 +28,25 @@ mod tests {
     #[test]
     fn test_scenario_1() {
         let app = init();
-        let accs = &app
+        let admin_initial_inj = 10000000 * ONE_18;
+        let initial_inj = 10005 * ONE_18;
+        let accounts = &app
             .init_accounts(
                 &[
-                    Coin::new(10000000000000000000 * ONE_18, "inj"),
-                    Coin::new(100000000000000000000 * ONE_6, "usdt"),
+                    Coin::new(admin_initial_inj, "inj"),
+                    Coin::new(10000000 * ONE_6, "usdt"),
                 ],
-                3,
+                1,
             )
             .unwrap();
 
-        let admin = accs.get(0).unwrap();
-        let user1 = accs.get(1).unwrap();
-        let user2 = accs.get(2).unwrap();
+        let admin = &accounts[0];
+
+        let accounts = &app
+            .init_accounts(&[Coin::new(initial_inj, "inj")], 2)
+            .unwrap();
+        let user1 = &accounts[0];
+        let user2 = &accounts[1];
 
         let wasm: Wasm<'_, InjectiveTestApp> = Wasm::new(&app);
         let exchange = Exchange::new(&app);
@@ -150,6 +161,7 @@ mod tests {
             .unwrap();
 
         let current_auction_round = current_auction_response.auctionRound;
+
         let auction_end_time = current_auction_response.auctionClosingTime;
         let current_time = app.get_block_time_seconds();
 
@@ -243,6 +255,17 @@ mod tests {
             "incorrect query result error message"
         );
 
+        // We send some inj to make it worth it
+        let send_inj_to_basket = bank.send(
+            MsgSend {
+                from_address: admin.address(),
+                to_address: AUCTION_VAULT_ADDRESS.to_string(),
+                amount: vec![inj_amount_to_basket.clone().into()],
+            },
+            admin,
+        );
+        assert!(send_inj_to_basket.is_ok());
+
         // Fetch new auction round ecc...
         let current_auction_response = wasm
             .query::<QueryMsg, QueryCurrentAuctionBasketResponse>(
@@ -261,7 +284,6 @@ mod tests {
         app.increase_time(time_increase);
 
         // We bid; should pass
-
         let try_bid_response = wasm.execute::<ExecuteMsg>(
             &contract_addr,
             &ExecuteMsg::TryBid {
@@ -339,8 +361,20 @@ mod tests {
             &[],
             admin,
         );
-
         assert!(try_bid_response.is_ok());
+
+        // We try to settle the last auction; should fail as its still active
+        let try_settle_response =
+            wasm.execute::<ExecuteMsg>(&contract_addr, &ExecuteMsg::TrySettle {}, &[], admin);
+
+        assert!(try_settle_response.is_err());
+        assert!(
+            try_settle_response
+                .unwrap_err()
+                .to_string()
+                .contains("Bid attempt round not finished"),
+            "incorrect query result error message"
+        );
 
         let current_auction_response = wasm
             .query::<QueryMsg, QueryCurrentAuctionBasketResponse>(
@@ -351,29 +385,10 @@ mod tests {
 
         // print!("Auction response: {:?}", current_auction_response);
 
-        // We try to settle the last auction; should fail as its still active
-        let try_bid_response = wasm.execute::<ExecuteMsg>(
-            &contract_addr,
-            &ExecuteMsg::TrySettle {},
-            &[Coin::new(Uint128::one(), "inj")],
-            admin,
-        );
-        // print!("Try_settle response: {:?}", try_bid_response);
-
-        assert!(try_bid_response.is_err());
-        assert!(
-            try_bid_response
-                .unwrap_err()
-                .to_string()
-                .contains("Bid attempt round not finished"),
-            "incorrect query result error message"
-        );
-
         let auction_end_time = current_auction_response.auctionClosingTime;
         let current_time = app.get_block_time_seconds();
 
         // We set the blockchain time to auction_end_time + 5; Should pass time buffer
-
         let time_increase = u64::try_from(auction_end_time - current_time + 5).unwrap();
         app.increase_time(time_increase);
 
@@ -412,14 +427,81 @@ mod tests {
         );
 
         // try settle again
-        let try_settle_response = wasm.execute::<ExecuteMsg>(
-            &contract_addr,
-            &ExecuteMsg::TrySettle {},
-            &[Coin::new(Uint128::one(), "inj")],
-            admin,
-        );
+        let try_settle_response =
+            wasm.execute::<ExecuteMsg>(&contract_addr, &ExecuteMsg::TrySettle {}, &[], admin);
         // print!("Try_settle response: {:?}", try_settle_response);
 
         assert!(try_settle_response.is_ok());
+
+        let global = wasm
+            .query::<QueryMsg, Global>(&contract_addr, &QueryMsg::State {})
+            .unwrap();
+
+        wasm.execute::<ExecuteMsg>(
+            &contract_addr,
+            &ExecuteMsg::Withdraw {
+                amount: inj_amount_to_basket.amount.multiply_ratio(1u128, 2u128),
+            },
+            &[],
+            user1,
+        )
+        .unwrap();
+
+        wasm.execute::<ExecuteMsg>(
+            &contract_addr,
+            &ExecuteMsg::Withdraw {
+                amount: inj_amount_to_basket.amount.multiply_ratio(1u128, 2u128),
+            },
+            &[],
+            user2,
+        )
+        .unwrap();
+
+        let contract_balance = bank
+            .query_balance(&QueryBalanceRequest {
+                address: contract_addr.clone(),
+                denom: INJ.to_string(),
+            })
+            .unwrap();
+
+        let contract_balance = Uint128::from(
+            u128::from_str_radix(&contract_balance.balance.unwrap().amount, 10).unwrap(),
+        );
+
+        assert_approx_eq_uint128(contract_balance, Uint128::new(10000), 50000);
+
+        let user1_balance = bank
+            .query_balance(&QueryBalanceRequest {
+                address: user1.address(),
+                denom: INJ.to_string(),
+            })
+            .unwrap();
+
+        let user1_balance = Uint128::from(
+            u128::from_str_radix(&user1_balance.balance.unwrap().amount, 10).unwrap(),
+        );
+
+        assert_approx_eq_uint128(
+            user1_balance,
+            Uint128::from(initial_inj) + global.accumulated_profit.multiply_ratio(1u128, 2u128),
+            50,
+        );
+
+        let user2_balance = bank
+            .query_balance(&QueryBalanceRequest {
+                address: user2.address(),
+                denom: INJ.to_string(),
+            })
+            .unwrap();
+
+        let user2_balance = Uint128::from(
+            u128::from_str_radix(&user2_balance.balance.unwrap().amount, 10).unwrap(),
+        );
+
+        assert_approx_eq_uint128(
+            user2_balance,
+            Uint128::from(initial_inj) + global.accumulated_profit.multiply_ratio(1u128, 2u128),
+            50,
+        );
     }
 }

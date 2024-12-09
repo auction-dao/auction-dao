@@ -4,7 +4,7 @@ use crate::state::{
     read_swap_route, BID_ATTEMPT, BID_ATTEMPT_TRANSIENT, CONFIG, SETTLED_AMOUNT_TRANSIENT,
 };
 use auction_dao::msg::{ExecuteMsg, SELL_ASSET_SUCCESS_REPLY_ID, TRY_BID_SUCCESS_REPLY_ID};
-use auction_dao::state::BidAttempt;
+use auction_dao::state::{BidAttempt, Config, SellAssetPayload};
 
 use auction_dao::{error::ContractError, types::BidResult};
 use cosmwasm_std::{
@@ -239,13 +239,15 @@ pub fn try_settle(
 
     let last_auction_result = get_last_auction_result(deps.as_ref())?;
 
-    /* deps.api.debug(&format!(
-        "This the last auction from inside contract {:?}",
-        &last_auction_result
-    )); */
+    // deps.api.debug(&format!(
+    //     "This the last auction from inside contract {:?}",
+    //     &last_auction_result
+    // ));
 
-    /*     This works fine as its impossible to create a new bid_attempt untile the last one is deleted
-    by settling his round */
+    // deps.api.debug(&format!(
+    //     "This the bid attempt from inside contract {:?}",
+    //     &bid_attempt
+    // ));
 
     if &bid_attempt.round != &last_auction_result.round {
         return Err(ContractError::BidAttemptRoundNotFinished(
@@ -303,7 +305,7 @@ pub fn try_settle(
 
         let amount = Uint128::from_str(&asset.amount)?;
         let market_id = swap_route?.market_id;
-        let msg = swap(
+        let (msg, sell_type) = swap(
             deps.as_ref(),
             &env.contract.address,
             amount,
@@ -312,7 +314,10 @@ pub fn try_settle(
         )?;
 
         let mut submsg = SubMsg::reply_on_success(msg, SELL_ASSET_SUCCESS_REPLY_ID);
-        submsg.payload = to_json_binary(asset)?;
+        submsg.payload = to_json_binary(&SellAssetPayload {
+            sell_type,
+            coin: asset.to_owned(),
+        })?;
 
         response = response
             .add_submessage(submsg)
@@ -323,6 +328,7 @@ pub fn try_settle(
         deps,
         env.contract.address.as_str(),
         &bid_attempt,
+        &config,
     )?);
 
     Ok(response)
@@ -332,10 +338,19 @@ pub fn create_after_settle_message(
     deps: DepsMut<InjectiveQueryWrapper>,
     contract_addr: &str,
     bid_attempt: &BidAttempt,
+    config: &Config,
 ) -> Result<CosmosMsg<InjectiveMsgWrapper>, ContractError> {
-    // set the transient settled amount to zero
+    // set initial settled amount to the amount of the accepted denom
+    let mut initial_amount = Uint128::zero();
+    for asset in bid_attempt.basket.iter() {
+        // skip accepted denom (inj)
+        if &asset.denom == &config.accepted_denom {
+            initial_amount = Uint128::from_str(&asset.amount)?;
+            break;
+        }
+    }
     // each of the sell asset submessages will add to the settled amount
-    SETTLED_AMOUNT_TRANSIENT.save(deps.storage, &Uint128::zero())?;
+    SETTLED_AMOUNT_TRANSIENT.save(deps.storage, &initial_amount)?;
 
     return Ok(CosmosMsg::Wasm(WasmMsg::Execute {
         contract_addr: contract_addr.to_string(),

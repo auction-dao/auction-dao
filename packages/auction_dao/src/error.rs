@@ -66,6 +66,9 @@ pub enum ContractError {
     #[error("Cannot manually swap deposit asset")]
     CannotManuallySwap {},
 
+    #[error("Empty sell asset payload")]
+    EmptySellAssetPayload {},
+
     #[error("Invalid reply from sub-message {id}, {err}")]
     ReplyParseFailure { id: u64, err: String },
 

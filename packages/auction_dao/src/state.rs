@@ -2,8 +2,6 @@ use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{Addr, Decimal256, Uint128};
 use injective_cosmwasm::{MarketId, SubaccountId};
 use injective_std::types::cosmos::base::v1beta1::Coin;
-use schemars::JsonSchema;
-use serde::{Deserialize, Serialize};
 
 #[cw_serde]
 pub struct Config {
@@ -55,7 +53,7 @@ impl Default for Global {
     }
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq, JsonSchema)]
+#[cw_serde]
 pub struct SwapRoute {
     pub market_id: MarketId,
     pub source_denom: String,
@@ -88,4 +86,16 @@ impl Default for BidAttempt {
             basket: vec![],
         }
     }
+}
+
+#[cw_serde]
+pub enum SellType {
+    Base,
+    Quote,
+}
+
+#[cw_serde]
+pub struct SellAssetPayload {
+    pub coin: Coin,
+    pub sell_type: SellType,
 }

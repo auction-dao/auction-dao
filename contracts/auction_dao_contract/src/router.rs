@@ -19,10 +19,10 @@ pub(crate) fn get_inj_value_asset(
     let market_id = match read_swap_route(deps, &source_denom, &target_denom) {
         Ok(route) => route,
         Err(_e) => {
-            /*             deps.api.debug(&format!(
-                "Error, Probably market_id not registered  {:?}",
-                _e
-            )); */
+            // deps.api.debug(&format!(
+            //     "Error, Probably market_id not registered  {:?}",
+            //     _e
+            // ));
             return Uint128::from_str(&"0");
         }
     }
@@ -57,8 +57,8 @@ pub(crate) fn get_inj_value_asset(
         .query_wasm_smart(config.swap_router, &querry_output_message)
     {
         Ok(response) => response,
-        Err(e) => {
-            deps.api.debug(&format!("query_wasm_smart error: {:?}", e));
+        Err(_e) => {
+            // deps.api.debug(&format!("query_wasm_smart error: {:?}", e));
 
             RouterSimulationQuerryResponse::default()
         }
