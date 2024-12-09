@@ -55,6 +55,10 @@ pub(crate) fn get_last_auction_result(
         })?;
 
     if let Some(last_auction) = last_auction_result_response.last_auction_result {
+        if last_auction.round == 0 && last_auction.winner == "" {
+            return Err(ContractError::LastAuctionResultNotFound {});
+        }
+
         return Ok(last_auction);
     } else {
         return Err(ContractError::LastAuctionResultNotFound {});
